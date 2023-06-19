@@ -298,6 +298,9 @@ func (p *OAuthProxy) buildServeMux(proxyPrefix string) {
 	// Register the robots path writer
 	r.Path(robotsPath).HandlerFunc(p.pageWriter.WriteRobotsTxt)
 
+	// Register clear all user sessions
+	r.Path(clearUserSessions).HandlerFunc(p.ClearUserSessions)
+
 	// The authonly path should be registered separately to prevent it from getting no-cache headers.
 	// We do this to allow users to have a short cache (via nginx) of the response to reduce the
 	// likelihood of multiple reuests trying to referesh sessions simultaneously.
@@ -737,12 +740,13 @@ func (p *OAuthProxy) SignOut(rw http.ResponseWriter, req *http.Request) {
 
 // ClearUserSessions sends a response to clear all sessions for a given user
 func (p *OAuthProxy) ClearUserSessions(rw http.ResponseWriter, req *http.Request) {
-	_, err := p.getAuthenticatedSession(rw, req)
-	if err != nil {
-		http.Error(rw, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		return
-	}
-	err = p.ClearAllSessionCookies(rw, req, req.URL.Query().Get("userid"))
+	// _, err := p.getAuthenticatedSession(rw, req)
+	// if err != nil {
+	// 	http.Error(rw, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+	// 	return
+	// }
+	fmt.Printf("Inside ClearUserSessions function\n")
+	err := p.ClearAllSessionCookies(rw, req, req.URL.Query().Get("user_id"))
 	if err != nil {
 		logger.Errorf("Error clearing session cookies for user: %v", err)
 		p.ErrorPage(rw, req, http.StatusInternalServerError, err.Error())

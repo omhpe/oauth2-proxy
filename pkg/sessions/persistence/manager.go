@@ -121,6 +121,7 @@ func (m *Manager) Clear(rw http.ResponseWriter, req *http.Request) error {
 // Clear clears any saved session information for a given ticket cookie.
 // Then it clears all session data for that ticket in the Store.
 func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, user string) error {
+	fmt.Printf("Inside ClearAll function in Manager.go\n")
 	tckt, err := decodeTicketFromRequest(req, m.Options)
 	if err != nil {
 		// Always clear the cookie, even when we can't load a cookie from

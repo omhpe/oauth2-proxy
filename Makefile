@@ -6,7 +6,7 @@ BINARY := oauth2-proxy
 # Allow to override image registry.
 #REGISTRY ?= quay.io/oauth2-proxy
 REGISTRY ?= arpitarathi
-VERSION ?= 1.0.0
+VERSION ?= 1.0.10
 .NOTPARALLEL:
 
 GO_MAJOR_VERSION = $(shell $(GO) version | cut -c 14- | cut -d' ' -f1 | cut -d'.' -f1)
@@ -52,7 +52,7 @@ DOCKER_BUILDX_PUSH_X_PLATFORM := $(DOCKER_BUILDX_PUSH) --platform ${DOCKER_BUILD
 
 .PHONY: docker
 docker:
-	$(DOCKER_BUILDX_X_PLATFORM) -f Dockerfile -t $(REGISTRY)/oauth2-proxy:1.0.3 .
+	$(DOCKER_BUILDX_X_PLATFORM) -f Dockerfile -t $(REGISTRY)/oauth2-proxy:$(VERSION) .
 
 .PHONY: docker-all
 docker-all: docker
@@ -68,7 +68,7 @@ docker-all: docker
 
 .PHONY: docker-push
 docker-push:
-	$(DOCKER_BUILDX_PUSH_X_PLATFORM) -t $(REGISTRY)/oauth2-proxy:1.0.3 .
+	$(DOCKER_BUILDX_PUSH_X_PLATFORM) -t $(REGISTRY)/oauth2-proxy:$(VERSION) .
 
 .PHONY: docker-push-all
 docker-push-all: docker-push

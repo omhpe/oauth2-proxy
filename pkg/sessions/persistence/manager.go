@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/apis/options"
@@ -39,6 +40,31 @@ func (m *Manager) Save(rw http.ResponseWriter, req *http.Request, s *sessions.Se
 		tckt, err = newTicket(m.Options)
 		if err != nil {
 			return fmt.Errorf("error creating a session ticket: %v", err)
+		}
+	}
+	fmt.Printf("Save information *******\n")
+	fmt.Printf("m.Options: %v", m.Options)
+	fmt.Printf("sessions.SessionState: s: %v\n", s)
+	fmt.Printf("tckt.id: %v\n", tckt.id)
+	fmt.Printf("tckt.options: %v\n", tckt.options)
+	fmt.Printf("tckt.options.Secret: %v\n", tckt.options.Secret)
+	fmt.Printf("http.ResponseWriter: %v\n", rw)
+	fmt.Printf("http.Request: %v\n", req)
+	keyName := fmt.Sprintf("sessionlist-%s", s.User)
+	keyVal, keyerr := m.Store.Load(req.Context(), keyName)
+	fmt.Printf("keyVal, keyerr = %v, %v\n", keyVal, keyerr)
+	if keyerr != nil {
+		keyerr = m.Store.Save(req.Context(), keyName, []byte(tckt.id), tckt.options.Expire)
+		if keyerr != nil {
+			return keyerr
+		}
+	} else {
+		if !strings.Contains(string(keyVal), tckt.id) {
+			ticket := []byte(fmt.Sprintf("%s:%s", keyVal, tckt.id))
+			keyerr = m.Store.Save(req.Context(), keyName, ticket, tckt.options.Expire)
+			if keyerr != nil {
+				return keyerr
+			}
 		}
 	}
 
@@ -89,6 +115,30 @@ func (m *Manager) Clear(rw http.ResponseWriter, req *http.Request) error {
 	tckt.clearCookie(rw, req)
 	return tckt.clearSession(func(key string) error {
 		return m.Store.Clear(req.Context(), key)
+	})
+}
+
+// Clear clears any saved session information for a given ticket cookie.
+// Then it clears all session data for that ticket in the Store.
+func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, user string) error {
+	tckt, err := decodeTicketFromRequest(req, m.Options)
+	if err != nil {
+		// Always clear the cookie, even when we can't load a cookie from
+		// the request
+		tckt = &ticket{
+			options: m.Options,
+		}
+		tckt.clearCookie(rw, req)
+		// Don't raise an error if we didn't have a Cookie
+		if err == http.ErrNoCookie {
+			return nil
+		}
+		return fmt.Errorf("error decoding ticket to clear session: %v", err)
+	}
+
+	tckt.clearCookie(rw, req)
+	return tckt.clearSession(func(key string) error {
+		return m.Store.ClearAll(req.Context(), key, user)
 	})
 }
 

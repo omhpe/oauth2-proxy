@@ -50,6 +50,7 @@ const (
 	oauthCallbackPath = "/callback"
 	authOnlyPath      = "/auth"
 	userInfoPath      = "/userinfo"
+	clearUserSessions = "/clear_user_sessions"
 )
 
 var (
@@ -319,6 +320,7 @@ func (p *OAuthProxy) buildProxySubrouter(s *mux.Router) {
 	s.Path(signOutPath).HandlerFunc(p.SignOut)
 	s.Path(oauthStartPath).HandlerFunc(p.OAuthStart)
 	s.Path(oauthCallbackPath).HandlerFunc(p.OAuthCallback)
+	s.Path(clearUserSessions).HandlerFunc(p.ClearUserSessions)
 
 	// The userinfo endpoint needs to load sessions before handling the request
 	s.Path(userInfoPath).Handler(p.sessionChain.ThenFunc(p.UserInfo))
@@ -507,6 +509,11 @@ func buildAPIRoutes(opts *options.Options) ([]apiRoute, error) {
 // stored in the user's session
 func (p *OAuthProxy) ClearSessionCookie(rw http.ResponseWriter, req *http.Request) error {
 	return p.sessionStore.Clear(rw, req)
+}
+
+// ClearAllSessionCookies clears all cookie sessions for a given user
+func (p *OAuthProxy) ClearAllSessionCookies(rw http.ResponseWriter, req *http.Request, user string) error {
+	return p.sessionStore.ClearAll(rw, req, user)
 }
 
 // LoadCookiedSession reads the user's authentication details from the request
@@ -726,6 +733,21 @@ func (p *OAuthProxy) SignOut(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	http.Redirect(rw, req, redirect, http.StatusFound)
+}
+
+// ClearUserSessions sends a response to clear all sessions for a given user
+func (p *OAuthProxy) ClearUserSessions(rw http.ResponseWriter, req *http.Request) {
+	_, err := p.getAuthenticatedSession(rw, req)
+	if err != nil {
+		http.Error(rw, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+	err = p.ClearAllSessionCookies(rw, req, req.URL.Query().Get("userid"))
+	if err != nil {
+		logger.Errorf("Error clearing session cookies for user: %v", err)
+		p.ErrorPage(rw, req, http.StatusInternalServerError, err.Error())
+		return
+	}
 }
 
 // OAuthStart starts the OAuth2 authentication flow

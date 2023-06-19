@@ -83,6 +83,12 @@ func (s *SessionStore) Clear(rw http.ResponseWriter, req *http.Request) error {
 	return nil
 }
 
+// ClearAll clears all saved sessions' information for a given user
+// from redis, and then clears the session. Not implemented for cookie
+func (s *SessionStore) ClearAll(rw http.ResponseWriter, req *http.Request, user string) error {
+	return nil
+}
+
 // VerifyConnection always return no-error, as there's no connection
 // in this store
 func (s *SessionStore) VerifyConnection(_ context.Context) error {

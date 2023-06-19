@@ -6,6 +6,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/apis/options"
@@ -61,6 +62,27 @@ func (store *SessionStore) Clear(ctx context.Context, key string) error {
 	err := store.Client.Del(ctx, key)
 	if err != nil {
 		return fmt.Errorf("error clearing the session from redis: %v", err)
+	}
+	return nil
+}
+
+// ClearAll clears all saved sessions' information for a given user
+// from redis, and then clears the session
+func (store *SessionStore) ClearAll(ctx context.Context, key string, user string) error {
+	keyName := fmt.Sprintf("sessionlist-%s", user)
+	value, err := store.Load(ctx, keyName)
+	if err != nil {
+		return err
+	}
+	for _, sessionKey := range strings.Split(string(value), ":") {
+		err = store.Client.Del(ctx, sessionKey)
+		if err != nil {
+			return fmt.Errorf("error clearing the session %v from redis: %v", sessionKey, err)
+		}
+	}
+	err = store.Client.Del(ctx, key)
+	if err != nil {
+		return fmt.Errorf("error clearing the session %v from redis: %v", key, err)
 	}
 	return nil
 }

@@ -12,7 +12,7 @@ type SessionStore interface {
 	Save(rw http.ResponseWriter, req *http.Request, s *SessionState) error
 	Load(req *http.Request) (*SessionState, error)
 	Clear(rw http.ResponseWriter, req *http.Request) error
-	ClearAll(rw http.ResponseWriter, req *http.Request, user string) error
+	ClearAll(rw http.ResponseWriter, req *http.Request, password string, user string) error
 	VerifyConnection(ctx context.Context) error
 }
 

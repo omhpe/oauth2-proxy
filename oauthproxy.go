@@ -515,8 +515,8 @@ func (p *OAuthProxy) ClearSessionCookie(rw http.ResponseWriter, req *http.Reques
 }
 
 // ClearAllSessionCookies clears all cookie sessions for a given user
-func (p *OAuthProxy) ClearAllSessionCookies(rw http.ResponseWriter, req *http.Request, user string) error {
-	return p.sessionStore.ClearAll(rw, req, user)
+func (p *OAuthProxy) ClearAllSessionCookies(rw http.ResponseWriter, req *http.Request, password string, user string) error {
+	return p.sessionStore.ClearAll(rw, req, password, user)
 }
 
 // LoadCookiedSession reads the user's authentication details from the request
@@ -746,10 +746,17 @@ func (p *OAuthProxy) ClearUserSessions(rw http.ResponseWriter, req *http.Request
 	// 	return
 	// }
 	fmt.Printf("Inside ClearUserSessions function\n")
-	err := p.ClearAllSessionCookies(rw, req, req.URL.Query().Get("user_id"))
+	err := p.ClearAllSessionCookies(rw, req, req.URL.Query().Get("password"), req.URL.Query().Get("user_id"))
 	if err != nil {
 		logger.Errorf("Error clearing session cookies for user: %v", err)
-		p.ErrorPage(rw, req, http.StatusInternalServerError, err.Error())
+		switch err.Error() {
+			case "access denied":
+				fmt.Printf("Inside ErrAccessDenied case. Err : %v\n",err)
+				p.ErrorPage(rw, req, http.StatusForbidden, "The session failed authorization checks")
+			default:
+				fmt.Printf("Inside default case. Err : %v\n",err)
+				p.ErrorPage(rw, req, http.StatusInternalServerError, err.Error())
+			}
 		return
 	}
 }
@@ -1001,7 +1008,6 @@ func (p *OAuthProxy) Proxy(rw http.ResponseWriter, req *http.Request) {
 		} else {
 			p.ErrorPage(rw, req, http.StatusForbidden, "The session failed authorization checks")
 		}
-
 	default:
 		// unknown error
 		logger.Errorf("Unexpected internal error: %v", err)

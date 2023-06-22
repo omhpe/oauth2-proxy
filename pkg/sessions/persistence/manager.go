@@ -2,8 +2,10 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -42,17 +44,8 @@ func (m *Manager) Save(rw http.ResponseWriter, req *http.Request, s *sessions.Se
 			return fmt.Errorf("error creating a session ticket: %v", err)
 		}
 	}
-	fmt.Printf("Save information *******\n")
-	fmt.Printf("m.Options: %v", m.Options)
-	fmt.Printf("sessions.SessionState: s: %v\n", s)
-	fmt.Printf("tckt.id: %v\n", tckt.id)
-	fmt.Printf("tckt.options: %v\n", tckt.options)
-	fmt.Printf("tckt.options.Secret: %v\n", tckt.options.Secret)
-	fmt.Printf("http.ResponseWriter: %v\n", rw)
-	fmt.Printf("http.Request: %v\n", req)
 	keyName := fmt.Sprintf("sessionlist-%s", s.User)
 	keyVal, keyerr := m.Store.Load(req.Context(), keyName)
-	fmt.Printf("keyVal, keyerr = %v, %v\n", keyVal, keyerr)
 	if keyerr != nil {
 		keyerr = m.Store.Save(req.Context(), keyName, []byte(tckt.id), tckt.options.Expire)
 		if keyerr != nil {
@@ -120,8 +113,12 @@ func (m *Manager) Clear(rw http.ResponseWriter, req *http.Request) error {
 
 // Clear clears any saved session information for a given ticket cookie.
 // Then it clears all session data for that ticket in the Store.
-func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, user string) error {
+func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, password string, user string) error {
 	fmt.Printf("Inside ClearAll function in Manager.go\n")
+
+	if password != os.Getenv("OAUTH2_PROXY_ADMIN_PASS") {
+		return errors.New("access denied")
+	}
 	tckt, err := decodeTicketFromRequest(req, m.Options)
 	if err != nil {
 		// Always clear the cookie, even when we can't load a cookie from
@@ -139,7 +136,7 @@ func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, user strin
 
 	tckt.clearCookie(rw, req)
 	return tckt.clearSession(func(key string) error {
-		return m.Store.ClearAll(req.Context(), key, user)
+		return m.Store.ClearAll(req.Context(), key, password, user)
 	})
 }
 

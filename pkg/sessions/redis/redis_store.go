@@ -50,7 +50,7 @@ func (store *SessionStore) Save(ctx context.Context, key string, value []byte, e
 // cookie within the HTTP request object
 func (store *SessionStore) Load(ctx context.Context, key string) ([]byte, error) {
 	value, err := store.Client.Get(ctx, key)
-	fmt.Printf("Value: %v", value)
+	//fmt.Printf("Value: %v", value)
 	if err != nil {
 		return nil, fmt.Errorf("error loading redis session: %v", err)
 	}
@@ -69,7 +69,7 @@ func (store *SessionStore) Clear(ctx context.Context, key string) error {
 
 // ClearAll clears all saved sessions' information for a given user
 // from redis, and then clears the session
-func (store *SessionStore) ClearAll(ctx context.Context, key string, user string) error {
+func (store *SessionStore) ClearAll(ctx context.Context, key string, password string, user string) error {
 	fmt.Printf("Redis Clear All function called \n")
 	fmt.Printf("user: %v \n", user)
 	keyName := fmt.Sprintf("sessionlist-%s", user)

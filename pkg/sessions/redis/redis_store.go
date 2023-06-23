@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -68,8 +69,23 @@ func (store *SessionStore) Clear(ctx context.Context, key string) error {
 
 // ClearAll clears all saved sessions' information for a given user
 // from redis, and then clears the session
-func (store *SessionStore) ClearAll(ctx context.Context, key string, password string, user string) error {
+func (store *SessionStore) ClearAll(ctx context.Context, s *sessions.SessionState, exp time.Duration, key string, password string, user string) error {
+	if password != os.Getenv("OAUTH2_PROXY_ADMIN_PASS") {
+		return errors.New("access denied")
+	}
 	keyName := fmt.Sprintf("sessionlist-%s", user)
+	err := s.ObtainLock(ctx, exp)
+	if err != nil {
+		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
+	}
+	defer func() {
+		if s == nil {
+			return
+		}
+		if err := s.ReleaseLock(ctx); err != nil {
+			logger.Errorf("unable to release lock: %v", err)
+		}
+	}()
 	value, err := store.Load(ctx, keyName)
 	if err != nil {
 		return err

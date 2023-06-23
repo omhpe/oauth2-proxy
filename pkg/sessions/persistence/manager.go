@@ -2,10 +2,8 @@ package persistence
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -45,6 +43,8 @@ func (m *Manager) Save(rw http.ResponseWriter, req *http.Request, s *sessions.Se
 			return fmt.Errorf("error creating a session ticket: %v", err)
 		}
 	}
+	// // Start
+	// if _, ok := interface{}(m.Store).(*redis.SessionStore); ok {
 	keyName := fmt.Sprintf("sessionlist-%s", s.User)
 	keyVal, keyerr := m.Store.Load(req.Context(), keyName)
 	var ticket []byte
@@ -60,6 +60,9 @@ func (m *Manager) Save(rw http.ResponseWriter, req *http.Request, s *sessions.Se
 	if err != nil {
 		return err
 	}
+	// }
+	// // End
+
 	err = tckt.saveSession(s, func(key string, val []byte, exp time.Duration) error {
 		return m.Store.Save(req.Context(), key, val, exp)
 	})
@@ -130,9 +133,6 @@ func (m *Manager) Clear(rw http.ResponseWriter, req *http.Request) error {
 // Clear clears any saved session information for a given ticket cookie.
 // Then it clears all session data for that ticket in the Store.
 func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, s *sessions.SessionState, password string, user string) error {
-	if password != os.Getenv("OAUTH2_PROXY_ADMIN_PASS") {
-		return errors.New("access denied")
-	}
 	tckt, err := decodeTicketFromRequest(req, m.Options)
 	if err != nil {
 		// Always clear the cookie, even when we can't load a cookie from
@@ -149,20 +149,8 @@ func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, s *session
 	}
 
 	tckt.clearCookie(rw, req)
-	err = s.ObtainLock(req.Context(), tckt.options.Expire)
-	if err != nil {
-		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
-	}
-	defer func() {
-		if s == nil {
-			return
-		}
-		if err := s.ReleaseLock(req.Context()); err != nil {
-			logger.Errorf("unable to release lock: %v", err)
-		}
-	}()
 	err = tckt.clearSession(func(key string) error {
-		return m.Store.ClearAll(req.Context(), key, password, user)
+		return m.Store.ClearAll(req.Context(), s, tckt.options.Expire, key, password, user)
 	})
 	return err
 }

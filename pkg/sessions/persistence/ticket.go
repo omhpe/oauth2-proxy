@@ -57,11 +57,6 @@ func newTicket(cookieOpts *options.Cookie) (*ticket, error) {
 	if _, err := io.ReadFull(rand.Reader, secret); err != nil {
 		return nil, fmt.Errorf("failed to create encryption secret: %v", err)
 	}
-	// fmt.Printf("Information in newTicket *******")
-	// fmt.Printf("ticketID : %v\n", ticketID)
-	// fmt.Printf("secret : %v\n", secret)
-	// fmt.Printf("cookieOpts : %v\n", cookieOpts)
-	// fmt.Printf("*cookieOpts : %v\n", *cookieOpts)
 
 	return &ticket{
 		id:      ticketID,

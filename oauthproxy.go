@@ -516,7 +516,11 @@ func (p *OAuthProxy) ClearSessionCookie(rw http.ResponseWriter, req *http.Reques
 
 // ClearAllSessionCookies clears all cookie sessions for a given user
 func (p *OAuthProxy) ClearAllSessionCookies(rw http.ResponseWriter, req *http.Request, password string, user string) error {
-	return p.sessionStore.ClearAll(rw, req, password, user)
+	s, err := p.sessionStore.Load(req)
+	if err != nil {
+		return err
+	}
+	return p.sessionStore.ClearAll(rw, req, s, password, user)
 }
 
 // LoadCookiedSession reads the user's authentication details from the request
@@ -740,23 +744,15 @@ func (p *OAuthProxy) SignOut(rw http.ResponseWriter, req *http.Request) {
 
 // ClearUserSessions sends a response to clear all sessions for a given user
 func (p *OAuthProxy) ClearUserSessions(rw http.ResponseWriter, req *http.Request) {
-	// _, err := p.getAuthenticatedSession(rw, req)
-	// if err != nil {
-	// 	http.Error(rw, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-	// 	return
-	// }
-	fmt.Printf("Inside ClearUserSessions function\n")
 	err := p.ClearAllSessionCookies(rw, req, req.URL.Query().Get("password"), req.URL.Query().Get("user_id"))
 	if err != nil {
 		logger.Errorf("Error clearing session cookies for user: %v", err)
 		switch err.Error() {
-			case "access denied":
-				fmt.Printf("Inside ErrAccessDenied case. Err : %v\n",err)
-				p.ErrorPage(rw, req, http.StatusForbidden, "The session failed authorization checks")
-			default:
-				fmt.Printf("Inside default case. Err : %v\n",err)
-				p.ErrorPage(rw, req, http.StatusInternalServerError, err.Error())
-			}
+		case "access denied":
+			p.ErrorPage(rw, req, http.StatusForbidden, "The session failed authorization checks")
+		default:
+			p.ErrorPage(rw, req, http.StatusInternalServerError, err.Error())
+		}
 		return
 	}
 }
@@ -1071,7 +1067,6 @@ func (p *OAuthProxy) getOAuthRedirectURI(req *http.Request) string {
 // Set-Cookie headers may be set on the response as a side-effect of calling this method.
 func (p *OAuthProxy) getAuthenticatedSession(rw http.ResponseWriter, req *http.Request) (*sessionsapi.SessionState, error) {
 	session := middlewareapi.GetRequestScope(req).Session
-
 	// Check this after loading the session so that if a valid session exists, we can add headers from it
 	if p.IsAllowedRequest(req) {
 		return session, nil

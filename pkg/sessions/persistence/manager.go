@@ -11,6 +11,7 @@ import (
 
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/apis/options"
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/apis/sessions"
+	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/logger"
 )
 
 // Manager wraps a Store and handles the implementation details of the
@@ -46,21 +47,19 @@ func (m *Manager) Save(rw http.ResponseWriter, req *http.Request, s *sessions.Se
 	}
 	keyName := fmt.Sprintf("sessionlist-%s", s.User)
 	keyVal, keyerr := m.Store.Load(req.Context(), keyName)
+	var ticket []byte
 	if keyerr != nil {
-		keyerr = m.Store.Save(req.Context(), keyName, []byte(tckt.id), tckt.options.Expire)
-		if keyerr != nil {
-			return keyerr
-		}
+		ticket = []byte(tckt.id)
+	} else if !(strings.Contains(string(keyVal), tckt.id)) {
+		ticket = []byte(fmt.Sprintf("%s:%s", keyVal, tckt.id))
 	} else {
-		if !strings.Contains(string(keyVal), tckt.id) {
-			ticket := []byte(fmt.Sprintf("%s:%s", keyVal, tckt.id))
-			keyerr = m.Store.Save(req.Context(), keyName, ticket, tckt.options.Expire)
-			if keyerr != nil {
-				return keyerr
-			}
-		}
+		ticket = keyVal
 	}
 
+	err = saveSessionKey(req.Context(), keyName, ticket, tckt.options.Expire, m, s)
+	if err != nil {
+		return err
+	}
 	err = tckt.saveSession(s, func(key string, val []byte, exp time.Duration) error {
 		return m.Store.Save(req.Context(), key, val, exp)
 	})
@@ -69,6 +68,23 @@ func (m *Manager) Save(rw http.ResponseWriter, req *http.Request, s *sessions.Se
 	}
 
 	return tckt.setCookie(rw, req, s)
+}
+
+func saveSessionKey(ctx context.Context, keyName string, ticket []byte, exp time.Duration, m *Manager, s *sessions.SessionState) error {
+	err := s.ObtainLock(ctx, exp)
+	if err != nil {
+		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
+	}
+	defer func() {
+		if s == nil {
+			return
+		}
+		if err := s.ReleaseLock(ctx); err != nil {
+			logger.Errorf("unable to release lock: %v", err)
+		}
+	}()
+	err = m.Store.Save(ctx, keyName, ticket, exp)
+	return err
 }
 
 // Load reads sessions.SessionState information from a session store. It will
@@ -113,9 +129,7 @@ func (m *Manager) Clear(rw http.ResponseWriter, req *http.Request) error {
 
 // Clear clears any saved session information for a given ticket cookie.
 // Then it clears all session data for that ticket in the Store.
-func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, password string, user string) error {
-	fmt.Printf("Inside ClearAll function in Manager.go\n")
-
+func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, s *sessions.SessionState, password string, user string) error {
 	if password != os.Getenv("OAUTH2_PROXY_ADMIN_PASS") {
 		return errors.New("access denied")
 	}
@@ -135,9 +149,22 @@ func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, password s
 	}
 
 	tckt.clearCookie(rw, req)
-	return tckt.clearSession(func(key string) error {
+	err = s.ObtainLock(req.Context(), tckt.options.Expire)
+	if err != nil {
+		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
+	}
+	defer func() {
+		if s == nil {
+			return
+		}
+		if err := s.ReleaseLock(req.Context()); err != nil {
+			logger.Errorf("unable to release lock: %v", err)
+		}
+	}()
+	err = tckt.clearSession(func(key string) error {
 		return m.Store.ClearAll(req.Context(), key, password, user)
 	})
+	return err
 }
 
 // VerifyConnection validates the underlying store is ready and connected

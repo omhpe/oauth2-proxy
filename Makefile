@@ -6,7 +6,7 @@ BINARY := oauth2-proxy
 # Allow to override image registry.
 #REGISTRY ?= quay.io/oauth2-proxy
 REGISTRY ?= arpitarathi
-VERSION ?= 1.0.19
+VERSION ?= 1.0.26
 .NOTPARALLEL:
 
 GO_MAJOR_VERSION = $(shell $(GO) version | cut -c 14- | cut -d' ' -f1 | cut -d'.' -f1)

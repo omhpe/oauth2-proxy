@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/oauth2-proxy/oauth2-proxy/v7/pkg/apis/options"
@@ -63,6 +65,69 @@ func (store *SessionStore) Clear(ctx context.Context, key string) error {
 		return fmt.Errorf("error clearing the session from redis: %v", err)
 	}
 	return nil
+}
+
+// ClearAll clears all saved sessions' information for a given user
+// from redis, and then clears the session
+func (store *SessionStore) ClearAll(ctx context.Context, s *sessions.SessionState, exp time.Duration, password string, user string) error {
+	if password != os.Getenv("OAUTH2_PROXY_ADMIN_PASS") {
+		return errors.New("access denied")
+	}
+	keyName := fmt.Sprintf("sessionlist-%s", user)
+	err := s.ObtainLock(ctx, exp)
+	if err != nil {
+		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
+	}
+	defer func() {
+		if s == nil {
+			return
+		}
+		if err := s.ReleaseLock(ctx); err != nil {
+			logger.Errorf("unable to release lock: %v", err)
+		}
+	}()
+	value, err := store.Load(ctx, keyName)
+	if err != nil {
+		return err
+	}
+	for _, sessionKey := range strings.Split(string(value), ":") {
+		err = store.Client.Del(ctx, sessionKey)
+		if err != nil {
+			return fmt.Errorf("error clearing the session %v from redis: %v", sessionKey, err)
+		}
+	}
+	err = store.Client.Del(ctx, keyName)
+	if err != nil {
+		return fmt.Errorf("error clearing the session %v from redis: %v", keyName, err)
+	}
+	return nil
+}
+
+func (store *SessionStore) SaveUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
+	keyName := fmt.Sprintf("sessionlist-%s", s.User)
+	keyVal, keyerr := store.Load(ctx, keyName)
+	var ticket string
+	if keyerr != nil {
+		ticket = value
+	} else if !(strings.Contains(string(keyVal), value)) {
+		ticket = fmt.Sprintf("%s:%s", keyVal, value)
+	} else {
+		ticket = string(keyVal)
+	}
+	err := s.ObtainLock(ctx, exp)
+	if err != nil {
+		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
+	}
+	defer func() {
+		if s == nil {
+			return
+		}
+		if err := s.ReleaseLock(ctx); err != nil {
+			logger.Errorf("unable to release lock: %v", err)
+		}
+	}()
+	err = store.Save(ctx, keyName, []byte(ticket), exp)
+	return err
 }
 
 // Lock creates a lock object for sessions.SessionState

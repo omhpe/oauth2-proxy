@@ -794,6 +794,9 @@ func (f *fakeSessionStore) Clear(rw http.ResponseWriter, req *http.Request) erro
 	return nil
 }
 
+func (f *fakeSessionStore) ClearAll(rw http.ResponseWriter, req *http.Request, s *sessionsapi.SessionState, string, user string) error {
+	return nil
+}
 func (f *fakeSessionStore) VerifyConnection(_ context.Context) error {
 	return nil
 }

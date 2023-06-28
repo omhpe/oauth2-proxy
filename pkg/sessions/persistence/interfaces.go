@@ -12,8 +12,10 @@ import (
 // for session ticket + encryption details.
 type Store interface {
 	Save(context.Context, string, []byte, time.Duration) error
+	SaveUserSession(context.Context, *sessions.SessionState, string, time.Duration) error
 	Load(context.Context, string) ([]byte, error)
 	Clear(context.Context, string) error
+	ClearAll(context.Context, *sessions.SessionState, time.Duration, string, string) error
 	Lock(key string) sessions.Lock
 	VerifyConnection(context.Context) error
 }

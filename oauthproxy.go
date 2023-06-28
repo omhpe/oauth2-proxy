@@ -50,6 +50,7 @@ const (
 	oauthCallbackPath = "/callback"
 	authOnlyPath      = "/auth"
 	userInfoPath      = "/userinfo"
+	clearUserSessions = "/clear_user_sessions"
 )
 
 var (
@@ -297,6 +298,9 @@ func (p *OAuthProxy) buildServeMux(proxyPrefix string) {
 	// Register the robots path writer
 	r.Path(robotsPath).HandlerFunc(p.pageWriter.WriteRobotsTxt)
 
+	// Register clear all user sessions
+	r.Path(clearUserSessions).HandlerFunc(p.ClearUserSessions)
+
 	// The authonly path should be registered separately to prevent it from getting no-cache headers.
 	// We do this to allow users to have a short cache (via nginx) of the response to reduce the
 	// likelihood of multiple reuests trying to referesh sessions simultaneously.
@@ -319,6 +323,7 @@ func (p *OAuthProxy) buildProxySubrouter(s *mux.Router) {
 	s.Path(signOutPath).HandlerFunc(p.SignOut)
 	s.Path(oauthStartPath).HandlerFunc(p.OAuthStart)
 	s.Path(oauthCallbackPath).HandlerFunc(p.OAuthCallback)
+	s.Path(clearUserSessions).HandlerFunc(p.ClearUserSessions)
 
 	// The userinfo endpoint needs to load sessions before handling the request
 	s.Path(userInfoPath).Handler(p.sessionChain.ThenFunc(p.UserInfo))
@@ -507,6 +512,15 @@ func buildAPIRoutes(opts *options.Options) ([]apiRoute, error) {
 // stored in the user's session
 func (p *OAuthProxy) ClearSessionCookie(rw http.ResponseWriter, req *http.Request) error {
 	return p.sessionStore.Clear(rw, req)
+}
+
+// ClearAllSessionCookies clears all cookie sessions for a given user
+func (p *OAuthProxy) ClearAllSessionCookies(rw http.ResponseWriter, req *http.Request, password string, user string) error {
+	s, err := p.sessionStore.Load(req)
+	if err != nil {
+		return err
+	}
+	return p.sessionStore.ClearAll(rw, req, s, password, user)
 }
 
 // LoadCookiedSession reads the user's authentication details from the request
@@ -726,6 +740,21 @@ func (p *OAuthProxy) SignOut(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 	http.Redirect(rw, req, redirect, http.StatusFound)
+}
+
+// ClearUserSessions sends a response to clear all sessions for a given user
+func (p *OAuthProxy) ClearUserSessions(rw http.ResponseWriter, req *http.Request) {
+	err := p.ClearAllSessionCookies(rw, req, req.URL.Query().Get("password"), req.URL.Query().Get("user_id"))
+	if err != nil {
+		logger.Errorf("Error clearing session cookies for user: %v", err)
+		switch err.Error() {
+		case "access denied":
+			p.ErrorPage(rw, req, http.StatusForbidden, "The session failed authorization checks")
+		default:
+			p.ErrorPage(rw, req, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
 }
 
 // OAuthStart starts the OAuth2 authentication flow
@@ -975,7 +1004,6 @@ func (p *OAuthProxy) Proxy(rw http.ResponseWriter, req *http.Request) {
 		} else {
 			p.ErrorPage(rw, req, http.StatusForbidden, "The session failed authorization checks")
 		}
-
 	default:
 		// unknown error
 		logger.Errorf("Unexpected internal error: %v", err)
@@ -1039,7 +1067,6 @@ func (p *OAuthProxy) getOAuthRedirectURI(req *http.Request) string {
 // Set-Cookie headers may be set on the response as a side-effect of calling this method.
 func (p *OAuthProxy) getAuthenticatedSession(rw http.ResponseWriter, req *http.Request) (*sessionsapi.SessionState, error) {
 	session := middlewareapi.GetRequestScope(req).Session
-
 	// Check this after loading the session so that if a valid session exists, we can add headers from it
 	if p.IsAllowedRequest(req) {
 		return session, nil

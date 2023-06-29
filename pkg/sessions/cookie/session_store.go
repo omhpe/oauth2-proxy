@@ -85,7 +85,7 @@ func (s *SessionStore) Clear(rw http.ResponseWriter, req *http.Request) error {
 
 // ClearAll clears all saved sessions' information for a given user
 // from redis, and then clears the session. Not implemented for cookie
-func (s *SessionStore) ClearAll(rw http.ResponseWriter, req *http.Request, ss *sessions.SessionState, password string, user string) error {
+func (s *SessionStore) ClearAll(rw http.ResponseWriter, req *http.Request, password string, user string) error {
 	return errors.New("access denied")
 }
 

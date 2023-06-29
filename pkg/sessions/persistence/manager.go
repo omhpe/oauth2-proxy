@@ -57,10 +57,6 @@ func (m *Manager) Save(rw http.ResponseWriter, req *http.Request, s *sessions.Se
 	return tckt.setCookie(rw, req, s)
 }
 
-// func (m *Manager) SaveUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
-// 	return m.Store.SaveUserSession(ctx, s, value, exp)
-// }
-
 // Load reads sessions.SessionState information from a session store. It will
 // use the session ticket from the http.Request's cookie.
 func (m *Manager) Load(req *http.Request) (*sessions.SessionState, error) {
@@ -102,8 +98,8 @@ func (m *Manager) Clear(rw http.ResponseWriter, req *http.Request) error {
 }
 
 // ClearAll clears any saved session information for a given user.
-func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, s *sessions.SessionState, password string, user string) error {
-	return m.Store.ClearAll(req.Context(), s, m.Options.Expire, password, user)
+func (m *Manager) ClearAll(rw http.ResponseWriter, req *http.Request, password string, user string) error {
+	return m.Store.ClearAll(req.Context(), m.Options.Expire, password, user)
 }
 
 // VerifyConnection validates the underlying store is ready and connected

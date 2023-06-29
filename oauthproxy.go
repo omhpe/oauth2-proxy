@@ -323,8 +323,6 @@ func (p *OAuthProxy) buildProxySubrouter(s *mux.Router) {
 	s.Path(signOutPath).HandlerFunc(p.SignOut)
 	s.Path(oauthStartPath).HandlerFunc(p.OAuthStart)
 	s.Path(oauthCallbackPath).HandlerFunc(p.OAuthCallback)
-	s.Path(clearUserSessions).HandlerFunc(p.ClearUserSessions)
-
 	// The userinfo endpoint needs to load sessions before handling the request
 	s.Path(userInfoPath).Handler(p.sessionChain.ThenFunc(p.UserInfo))
 }
@@ -516,11 +514,7 @@ func (p *OAuthProxy) ClearSessionCookie(rw http.ResponseWriter, req *http.Reques
 
 // ClearAllSessionCookies clears all cookie sessions for a given user
 func (p *OAuthProxy) ClearAllSessionCookies(rw http.ResponseWriter, req *http.Request, password string, user string) error {
-	s, err := p.sessionStore.Load(req)
-	if err != nil {
-		return err
-	}
-	return p.sessionStore.ClearAll(rw, req, s, password, user)
+	return p.sessionStore.ClearAll(rw, req, password, user)
 }
 
 // LoadCookiedSession reads the user's authentication details from the request
@@ -725,7 +719,7 @@ func (p *OAuthProxy) UserInfo(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// SignOut sends a response to clear the authentication cookie
+// SignOut sends a response to the authentication cookie
 func (p *OAuthProxy) SignOut(rw http.ResponseWriter, req *http.Request) {
 	redirect, err := p.appDirector.GetRedirect(req)
 	if err != nil {

@@ -77,6 +77,7 @@ func (m *Manager) Load(req *http.Request) (*sessions.SessionState, error) {
 // Then it clears all session data for that ticket in the Store.
 func (m *Manager) Clear(rw http.ResponseWriter, req *http.Request) error {
 	tckt, err := decodeTicketFromRequest(req, m.Options)
+
 	if err != nil {
 		// Always clear the cookie, even when we can't load a cookie from
 		// the request
@@ -91,7 +92,22 @@ func (m *Manager) Clear(rw http.ResponseWriter, req *http.Request) error {
 		return fmt.Errorf("error decoding ticket to clear session: %v", err)
 	}
 
+	s, err := tckt.loadSession(
+		func(key string) ([]byte, error) {
+			return m.Store.Load(req.Context(), key)
+		},
+		m.Store.Lock,
+	)
+
+	if err != nil {
+		return fmt.Errorf("unable to load session: %v", err)
+	}
+
 	tckt.clearCookie(rw, req)
+	err = m.Store.ClearUserSession(req.Context(), s, tckt.id, tckt.options.Expire)
+	if err != nil {
+		return err
+	}
 	return tckt.clearSession(func(key string) error {
 		return m.Store.Clear(req.Context(), key)
 	})

@@ -79,6 +79,10 @@ func (s *MockStore) VerifyConnection(_ context.Context) error {
 	return nil
 }
 
+func (s *MockStore) ClearUserSession(_ context.Context, ss *sessions.SessionState, key string, exp time.Duration) error {
+	return nil
+}
+
 // FastForward simulates the flow of time to test expirations
 func (s *MockStore) FastForward(duration time.Duration) {
 	for _, mockLock := range s.lockCache {

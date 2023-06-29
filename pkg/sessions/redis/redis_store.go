@@ -129,6 +129,32 @@ func (store *SessionStore) SaveUserSession(ctx context.Context, s *sessions.Sess
 	return saveTicketWithLock(ctx, store, keyName, ticket, exp)
 }
 
+func (store *SessionStore) ClearUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
+	keyName := fmt.Sprintf("sessionlist-%s", s.User)
+	keyVal, keyerr := store.Load(ctx, keyName)
+	if keyerr != nil {
+		return nil
+	} else {
+		var resultSessionVal []string
+		sessionKeyVals := strings.Split(string(keyVal), ":")
+		for _, v := range sessionKeyVals {
+			if v != value {
+				resultSessionVal = append(resultSessionVal, v)
+			}
+		}
+		if len(resultSessionVal) == 0 {
+			err := store.Client.Del(ctx, keyName)
+			if err != nil {
+				return fmt.Errorf("error clearing the session %v from redis: %v", keyName, err)
+			}
+		} else {
+			ticket := strings.Join(resultSessionVal, ":")
+			return saveTicketWithLock(ctx, store, keyName, ticket, exp)
+		}
+	}
+	return nil
+}
+
 // Lock creates a lock object for sessions.SessionState
 func (store *SessionStore) Lock(key string) sessions.Lock {
 	return store.Client.Lock(key)

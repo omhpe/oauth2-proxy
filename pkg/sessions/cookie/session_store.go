@@ -93,6 +93,10 @@ func (store *SessionStore) SaveUserSession(ctx context.Context, s *sessions.Sess
 	return nil
 }
 
+func (store *SessionStore) ClearUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
+	return nil
+}
+
 // VerifyConnection always return no-error, as there's no connection
 // in this store
 func (s *SessionStore) VerifyConnection(_ context.Context) error {

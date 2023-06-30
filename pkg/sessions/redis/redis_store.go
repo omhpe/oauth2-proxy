@@ -101,8 +101,14 @@ func (store *SessionStore) ClearAll(ctx context.Context, exp time.Duration, pass
 	return nil
 }
 
-func saveTicketWithLock(ctx context.Context, store *SessionStore, keyName string, ticket string, exp time.Duration) error {
-	lock := store.Lock(ticket)
+func saveTicket(ctx context.Context, store *SessionStore, keyName string, ticket string, exp time.Duration) error {
+	return store.Save(ctx, keyName, []byte(ticket), exp)
+}
+
+func (store *SessionStore) SaveUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
+
+	keyName := fmt.Sprintf("sessionlist-%s", s.User)
+	lock := store.Lock(keyName)
 	err := lock.Obtain(ctx, exp)
 	if err != nil {
 		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
@@ -112,11 +118,6 @@ func saveTicketWithLock(ctx context.Context, store *SessionStore, keyName string
 			logger.Errorf("unable to release lock: %v", err)
 		}
 	}()
-	return store.Save(ctx, keyName, []byte(ticket), exp)
-}
-
-func (store *SessionStore) SaveUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
-	keyName := fmt.Sprintf("sessionlist-%s", s.User)
 	keyVal, keyerr := store.Load(ctx, keyName)
 	var ticket string
 	if keyerr != nil {
@@ -126,11 +127,21 @@ func (store *SessionStore) SaveUserSession(ctx context.Context, s *sessions.Sess
 	} else {
 		ticket = string(keyVal)
 	}
-	return saveTicketWithLock(ctx, store, keyName, ticket, exp)
+	return saveTicket(ctx, store, keyName, ticket, exp)
 }
 
 func (store *SessionStore) ClearUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
 	keyName := fmt.Sprintf("sessionlist-%s", s.User)
+	lock := store.Lock(keyName)
+	err := lock.Obtain(ctx, exp)
+	if err != nil {
+		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
+	}
+	defer func() {
+		if err := lock.Release(ctx); err != nil {
+			logger.Errorf("unable to release lock: %v", err)
+		}
+	}()
 	keyVal, keyerr := store.Load(ctx, keyName)
 	if keyerr != nil {
 		return nil
@@ -149,7 +160,7 @@ func (store *SessionStore) ClearUserSession(ctx context.Context, s *sessions.Ses
 			}
 		} else {
 			ticket := strings.Join(resultSessionVal, ":")
-			return saveTicketWithLock(ctx, store, keyName, ticket, exp)
+			return saveTicket(ctx, store, keyName, ticket, exp)
 		}
 	}
 	return nil

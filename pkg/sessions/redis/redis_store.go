@@ -69,20 +69,18 @@ func (store *SessionStore) Clear(ctx context.Context, key string) error {
 
 // ClearAll clears all saved sessions' information for a given user
 // from redis, and then clears the session
-func (store *SessionStore) ClearAll(ctx context.Context, s *sessions.SessionState, exp time.Duration, password string, user string) error {
+func (store *SessionStore) ClearAll(ctx context.Context, exp time.Duration, password string, user string) error {
 	if password != os.Getenv("OAUTH2_PROXY_ADMIN_PASS") {
 		return errors.New("access denied")
 	}
 	keyName := fmt.Sprintf("sessionlist-%s", user)
-	err := s.ObtainLock(ctx, exp)
+	lock := store.Lock(keyName)
+	err := lock.Obtain(ctx, exp)
 	if err != nil {
 		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
 	}
 	defer func() {
-		if s == nil {
-			return
-		}
-		if err := s.ReleaseLock(ctx); err != nil {
+		if err := lock.Release(ctx); err != nil {
 			logger.Errorf("unable to release lock: %v", err)
 		}
 	}()
@@ -103,8 +101,23 @@ func (store *SessionStore) ClearAll(ctx context.Context, s *sessions.SessionStat
 	return nil
 }
 
+func saveTicket(ctx context.Context, store *SessionStore, keyName string, ticket string, exp time.Duration) error {
+	return store.Save(ctx, keyName, []byte(ticket), exp)
+}
+
 func (store *SessionStore) SaveUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
+
 	keyName := fmt.Sprintf("sessionlist-%s", s.User)
+	lock := store.Lock(keyName)
+	err := lock.Obtain(ctx, exp)
+	if err != nil {
+		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
+	}
+	defer func() {
+		if err := lock.Release(ctx); err != nil {
+			logger.Errorf("unable to release lock: %v", err)
+		}
+	}()
 	keyVal, keyerr := store.Load(ctx, keyName)
 	var ticket string
 	if keyerr != nil {
@@ -114,20 +127,43 @@ func (store *SessionStore) SaveUserSession(ctx context.Context, s *sessions.Sess
 	} else {
 		ticket = string(keyVal)
 	}
-	err := s.ObtainLock(ctx, exp)
+	return saveTicket(ctx, store, keyName, ticket, exp)
+}
+
+func (store *SessionStore) ClearUserSession(ctx context.Context, s *sessions.SessionState, value string, exp time.Duration) error {
+	keyName := fmt.Sprintf("sessionlist-%s", s.User)
+	lock := store.Lock(keyName)
+	err := lock.Obtain(ctx, exp)
 	if err != nil {
 		return fmt.Errorf("error occurred while trying to obtain lock: %v", err)
 	}
 	defer func() {
-		if s == nil {
-			return
-		}
-		if err := s.ReleaseLock(ctx); err != nil {
+		if err := lock.Release(ctx); err != nil {
 			logger.Errorf("unable to release lock: %v", err)
 		}
 	}()
-	err = store.Save(ctx, keyName, []byte(ticket), exp)
-	return err
+	keyVal, keyerr := store.Load(ctx, keyName)
+	if keyerr != nil {
+		return nil
+	} else {
+		var resultSessionVal []string
+		sessionKeyVals := strings.Split(string(keyVal), ":")
+		for _, v := range sessionKeyVals {
+			if v != value {
+				resultSessionVal = append(resultSessionVal, v)
+			}
+		}
+		if len(resultSessionVal) == 0 {
+			err := store.Client.Del(ctx, keyName)
+			if err != nil {
+				return fmt.Errorf("error clearing the session %v from redis: %v", keyName, err)
+			}
+		} else {
+			ticket := strings.Join(resultSessionVal, ":")
+			return saveTicket(ctx, store, keyName, ticket, exp)
+		}
+	}
+	return nil
 }
 
 // Lock creates a lock object for sessions.SessionState

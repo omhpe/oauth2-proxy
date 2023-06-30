@@ -15,7 +15,8 @@ type Store interface {
 	SaveUserSession(context.Context, *sessions.SessionState, string, time.Duration) error
 	Load(context.Context, string) ([]byte, error)
 	Clear(context.Context, string) error
-	ClearAll(context.Context, *sessions.SessionState, time.Duration, string, string) error
+	ClearAll(context.Context, time.Duration, string, string) error
+	ClearUserSession(context.Context, *sessions.SessionState, string, time.Duration) error
 	Lock(key string) sessions.Lock
 	VerifyConnection(context.Context) error
 }

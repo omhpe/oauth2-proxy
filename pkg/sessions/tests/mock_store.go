@@ -57,7 +57,7 @@ func (s *MockStore) Clear(_ context.Context, key string) error {
 }
 
 // Clear deletes an entry from the memory cache
-func (s *MockStore) ClearAll(_ context.Context, ss *sessions.SessionState, exp time.Duration, password string, user string) error {
+func (s *MockStore) ClearAll(_ context.Context, exp time.Duration, password string, user string) error {
 	return nil
 }
 
@@ -76,6 +76,10 @@ func (s *MockStore) Lock(key string) sessions.Lock {
 }
 
 func (s *MockStore) VerifyConnection(_ context.Context) error {
+	return nil
+}
+
+func (s *MockStore) ClearUserSession(_ context.Context, ss *sessions.SessionState, key string, exp time.Duration) error {
 	return nil
 }
 

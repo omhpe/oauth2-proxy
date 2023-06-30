@@ -5,8 +5,8 @@ BINARY := oauth2-proxy
 #VERSION ?= $(shell git describe --always --dirty --tags 2>/dev/null || echo "undefined")
 # Allow to override image registry.
 #REGISTRY ?= quay.io/oauth2-proxy
-REGISTRY ?= arpitarathi
-VERSION ?= 1.0.31
+REGISTRY ?= omkatthar
+VERSION ?= 1.0.2
 .NOTPARALLEL:
 
 GO_MAJOR_VERSION = $(shell $(GO) version | cut -c 14- | cut -d' ' -f1 | cut -d'.' -f1)

@@ -86,7 +86,7 @@ func (store *SessionStore) ClearAll(ctx context.Context, exp time.Duration, pass
 	}()
 	value, err := store.Load(ctx, keyName)
 	if err != nil {
-		return err
+		return nil
 	}
 	for _, sessionKey := range strings.Split(string(value), ":") {
 		err = store.Client.Del(ctx, sessionKey)
